@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BHK Home Cost Calculator</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background: #f7f9fc;
+        padding: 20px;
+    }
+    .container {
+        max-width: 550px;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    label {
+        font-weight: bold;
+        display: block;
+        margin-top: 10px;
+    }
+    input, select, button {
+        width: 100%;
+        padding: 10px;
+        margin-top: 5px;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        font-size: 16px;
+    }
+    button {
+        background: #007BFF;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 15px;
+    }
+    button:hover {
+        background: #0056b3;
+    }
+    .result {
+        margin-top: 20px;
+        background: #f1f3f6;
+        padding: 15px;
+        border-radius: 5px;
+    }
+    .result table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .result table td, .result table th {
+        padding: 8px;
+        border-bottom: 1px solid #ddd;
+    }
+    .result table th {
+        text-align: left;
+    }
+    canvas {
+        margin-top: 20px;
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2 id="title">🏠 Home Cost Calculator</h2>
+
+    <!-- Language Selector -->
+    <label id="langLabel">Language:</label>
+    <select id="language" onchange="changeLanguage()">
+        <option value="en" selected>English</option>
+        <option value="mr">मराठी</option>
+    </select>
+
+    <label id="bhkLabel">BHK Type:</label>
+    <select id="bhk" onchange="setDefaultArea()">
+        <option value="1">1 BHK</option>
+        <option value="2">2 BHK</option>
+        <option value="3">3 BHK</option>
+    </select>
+
+    <label id="areaLabel">Area (sq ft):</label>
+    <input type="number" id="area" placeholder="Enter total area in sq ft">
+
+    <label id="qualityLabel">Quality:</label>
+    <select id="quality">
+        <option value="basic">Basic</option>
+        <option value="standard" selected>Standard</option>
+        <option value="premium">Premium</option>
+    </select>
+
+    <label id="locationLabel">Location:</label>
+    <select id="location">
+        <option value="1.0">Tier 2 City (Normal Cost)</option>
+        <option value="1.2">Metro City (High Cost)</option>
+        <option value="0.9">Small Town (Low Cost)</option>
+        <option value="0.8">Rural Area (Very Low Cost)</option>
+    </select>
+
+    <button id="calcBtn" onclick="calculateCost()">Calculate Cost</button>
+
+    <div class="result" id="result"></div>
+    <canvas id="costChart"></canvas>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let chartInstance = null;
+let currentLang = "en";
+
+// Translations
+const translations = {
+    en: {
+        title: "🏠 Home Cost Calculator",
+        langLabel: "Language:",
+        bhkLabel: "BHK Type:",
+        areaLabel: "Area (sq ft):",
+        qualityLabel: "Quality:",
+        locationLabel: "Location:",
+        calcBtn: "Calculate Cost",
+        baseRate: "Base Rate (₹/sqft)",
+        constructionCost: "Construction Cost",
+        architectFee: "Architect Fee",
+        permits: "Permits",
+        fittings: "Fittings",
+        contingency: "Contingency",
+        totalCost: "Total Cost",
+        error: "⚠ Please enter a valid area!"
+    },
+    mr: {
+        title: "🏠 घर बांधणी खर्च कॅल्क्युलेटर",
+        langLabel: "भाषा:",
+        bhkLabel: "BHK प्रकार:",
+        areaLabel: "क्षेत्रफळ (चौ. फूट):",
+        qualityLabel: "गुणवत्ता:",
+        locationLabel: "ठिकाण:",
+        calcBtn: "खर्च काढा",
+        baseRate: "मूल्य दर (₹/चौ. फूट)",
+        constructionCost: "बांधकाम खर्च",
+        architectFee: "आर्किटेक्ट फी",
+        permits: "परवाने",
+        fittings: "फिटिंग्स",
+        contingency: "अनपेक्षित खर्च",
+        totalCost: "एकूण खर्च",
+        error: "⚠ कृपया योग्य क्षेत्रफळ भरा!"
+    }
+};
+
+function changeLanguage() {
+    currentLang = document.getElementById("language").value;
+    const t = translations[currentLang];
+    document.getElementById("title").innerText = t.title;
+    document.getElementById("langLabel").innerText = t.langLabel;
+    document.getElementById("bhkLabel").innerText = t.bhkLabel;
+    document.getElementById("areaLabel").innerText = t.areaLabel;
+    document.getElementById("qualityLabel").innerText = t.qualityLabel;
+    document.getElementById("locationLabel").innerText = t.locationLabel;
+    document.getElementById("calcBtn").innerText = t.calcBtn;
+}
+
+function setDefaultArea() {
+    let bhk = document.getElementById("bhk").value;
+    let defaultAreas = { "1": 600, "2": 900, "3": 1200 };
+    document.getElementById("area").value = defaultAreas[bhk];
+}
+
+function formatRupees(amount) {
+    return amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
+}
+
+function calculateCost() {
+    let t = translations[currentLang];
+    let area = parseFloat(document.getElementById("area").value);
+    let quality = document.getElementById("quality").value;
+    let locationFactor = parseFloat(document.getElementById("location").value);
+
+    if (isNaN(area) || area <= 0) {
+        document.getElementById("result").innerHTML = `<p style='color:red;'>${t.error}</p>`;
+        return;
+    }
+
+    let rates = {
+        "basic": 1500,
+        "standard": 1900,
+        "premium": 2600
+    };
+
+    let baseRate = rates[quality] * locationFactor;
+    let constructionCost = area * baseRate;
+    let architectFee = constructionCost * 0.05;
+    let permits = 50000;
+    let fittings = 100000;
+    let contingency = constructionCost * 0.07;
+
+    let totalCost = constructionCost + architectFee + permits + fittings + contingency;
+
+    // Show table result
+    document.getElementById("result").innerHTML = `
+        <table>
+            <tr><th>${t.baseRate}</th><td>${formatRupees(baseRate)}</td></tr>
+            <tr><th>${t.constructionCost}</th><td>${formatRupees(constructionCost)}</td></tr>
+            <tr><th>${t.architectFee}</th><td>${formatRupees(architectFee)}</td></tr>
+            <tr><th>${t.permits}</th><td>${formatRupees(permits)}</td></tr>
+            <tr><th>${t.fittings}</th><td>${formatRupees(fittings)}</td></tr>
+            <tr><th>${t.contingency}</th><td>${formatRupees(contingency)}</td></tr>
+            <tr><th style="color:green;">${t.totalCost}</th><th style="color:green;">${formatRupees(totalCost)}</th></tr>
+        </table>
+    `;
+
+    // Pie Chart
+    if (chartInstance) {
+        chartInstance.destroy();
+    }
+    chartInstance = new Chart(document.getElementById("costChart"), {
+        type: 'pie',
+        data: {
+            labels: [t.constructionCost, t.architectFee, t.permits, t.fittings, t.contingency],
+            datasets: [{
+                data: [constructionCost, architectFee, permits, fittings, contingency],
+                backgroundColor: ["#4cafef", "#ff9800", "#8bc34a", "#e91e63", "#9c27b0"]
+            }]
+        }
+    });
+}
+</script>
+
+</body>
+</html>
